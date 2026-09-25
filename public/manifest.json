@@ -1,0 +1,15 @@
+{
+  "name": "プランクタイマー",
+  "short_name": "プランク",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#101c27",
+  "theme_color": "#101c27",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
