@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101c27">
+  <title>プランクタイマー</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", sans-serif; background:#101c27; color:#f4f7f8; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100svh; background:radial-gradient(circle at 50% 7%, #234052, #101c27 58%); }
+    main { max-width:520px; min-height:100svh; margin:auto; padding: max(26px, env(safe-area-inset-top)) 22px max(30px, env(safe-area-inset-bottom)); display:flex; flex-direction:column; }
+    header { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    h1 { font-size:18px; letter-spacing:.05em; margin:0; }
+    .tag { font-size:11px; color:#9bc4c5; letter-spacing:.12em; font-weight:700; }
+    .intro { color:#a9bac3; font-size:14px; line-height:1.6; margin:18px 0 22px; }
+    .card { background:#ffffff0b; border:1px solid #ffffff1c; border-radius:22px; padding:8px 20px; }
+    .row { min-height:77px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid #ffffff18; }
+    .row:last-child { border:0; }
+    .name { font-size:15px; font-weight:650; }
+    .hint { display:block; color:#8fa6b2; font-size:11px; font-weight:400; margin-top:4px; }
+    .stepper { display:flex; align-items:center; gap:5px; flex-shrink:0; }
+    .stepper button { width:42px; height:42px; border-radius:12px; border:1px solid #ffffff2b; background:#223342; color:#f8fafb; font-size:24px; cursor:pointer; }
+    .stepper button:active { background:#385467; }
+    input { width:65px; border:0; border-bottom:1px solid #668592; background:transparent; text-align:center; color:white; font:600 23px system-ui; border-radius:0; padding:4px 0; }
+    input:focus-visible, button:focus-visible { outline:3px solid #91d9ce; outline-offset:2px; }
+    input::-webkit-inner-spin-button { display:none; }
+    .unit { color:#9fb3bb; font-size:13px; width:16px; }
+    .summary { color:#b4c7ca; text-align:center; font-size:13px; margin:20px 0; }
+    .primary, .secondary { width:100%; border:0; border-radius:16px; min-height:58px; font-size:17px; font-weight:750; cursor:pointer; }
+    .primary { color:#10292d; background:#a5ebcf; box-shadow:0 10px 30px #50bea638; }
+    .primary:disabled { opacity:.55; cursor:wait; }
+    .secondary { color:#e8f0f2; background:#ffffff15; border:1px solid #ffffff27; }
+    .note { color:#91a7b0; font-size:12px; line-height:1.65; margin:18px 2px 0; }
+    #session { display:none; flex:1; flex-direction:column; justify-content:center; }
+    .phase { text-align:center; color:#a5ebcf; letter-spacing:.18em; font-weight:750; font-size:15px; }
+    .set { text-align:center; color:#b7c7d0; font-size:14px; margin:8px 0 28px; }
+    .dial { position:relative; width:min(78vw,340px); height:min(78vw,340px); margin:0 auto 25px; }
+    svg { width:100%; height:100%; transform:rotate(-90deg); }
+    circle { fill:none; stroke-width:9; }
+    .track { stroke:#ffffff1b; }
+    .progress { stroke:#a5ebcf; stroke-linecap:round; transition:stroke .3s; }
+    .dial.rest .progress { stroke:#7aafff; }
+    .dial.prep .progress { stroke:#dfb887; }
+    .dial-text { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; }
+    .number { font-variant-numeric:tabular-nums; font-size:clamp(78px,22vw,112px); font-weight:760; line-height:1; letter-spacing:-.06em; }
+    .seconds { color:#9dafb9; font-size:13px; margin-top:11px; }
+    .next { text-align:center; color:#b5c6cd; min-height:24px; font-size:14px; margin-bottom:30px; }
+    .actions { display:flex; gap:10px; }
+    .actions button { flex:1; }
+    #status { min-height:36px; text-align:center; color:#f2c99c; font-size:12px; margin-top:18px; line-height:1.5; }
+    @media (max-width:370px) { main { padding-left:15px; padding-right:15px; } .card { padding:5px 12px; } .stepper button { width:37px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header><h1>プランクタイマー</h1><span class="tag">PLANK / REST / REPEAT</span></header>
+  <section id="setup">
+    <p class="intro">秒数を決めたら、あとは音に合わせて動くだけ。</p>
+    <div class="card">
+      <div class="row"><label class="name" for="work">プランク<span class="hint">毎秒音が鳴ります</span></label><div class="stepper"><button type="button" data-field="work" data-step="-5" aria-label="プランクを5秒減らす">−</button><input id="work" type="number" inputmode="numeric" min="1" max="600" value="45" aria-label="プランクの秒数"><span class="unit">秒</span><button type="button" data-field="work" data-step="5" aria-label="プランクを5秒増やす">＋</button></div></div>
+      <div class="row"><label class="name" for="rest">休憩<span class="hint">休憩中も毎秒音が鳴ります</span></label><div class="stepper"><button type="button" data-field="rest" data-step="-5" aria-label="休憩を5秒減らす">−</button><input id="rest" type="number" inputmode="numeric" min="0" max="300" value="20" aria-label="休憩の秒数"><span class="unit">秒</span><button type="button" data-field="rest" data-step="5" aria-label="休憩を5秒増やす">＋</button></div></div>
+      <div class="row"><label class="name" for="sets">セット数</label><div class="stepper"><button type="button" data-field="sets" data-step="-1" aria-label="セット数を減らす">−</button><input id="sets" type="number" inputmode="numeric" min="1" max="20" value="3" aria-label="セット数"><span class="unit">回</span><button type="button" data-field="sets" data-step="1" aria-label="セット数を増やす">＋</button></div></div>
+      <div class="row"><label class="name" for="prep">開始前の準備</label><div class="stepper"><button type="button" data-field="prep" data-step="-5" aria-label="準備を5秒減らす">−</button><input id="prep" type="number" inputmode="numeric" min="0" max="60" value="10" aria-label="準備の秒数"><span class="unit">秒</span><button type="button" data-field="prep" data-step="5" aria-label="準備を5秒増やす">＋</button></div></div>
+    </div>
+    <p class="summary" id="summary"></p>
+    <button class="primary" id="start" type="button">開始</button>
+    <p class="note">設定だけをこの端末に保存します。運動履歴は保存しません。音が聞こえる設定でお使いください。</p>
+  </section>
+  <section id="session" aria-live="off">
+    <div class="phase" id="phase">準備</div><div class="set" id="setLabel"></div>
+    <div class="dial" id="dial"><svg viewBox="0 0 200 200" aria-hidden="true"><circle class="track" cx="100" cy="100" r="87"/><circle class="progress" id="ring" cx="100" cy="100" r="87"/></svg><div class="dial-text"><div class="number" id="remaining">10</div><div class="seconds">秒</div></div></div>
+    <div class="next" id="next"></div>
+    <div class="actions"><button class="secondary" type="button" id="pause">一時停止</button><button class="secondary" type="button" id="reset">終了</button></div>
+    <div id="status" role="status"></div>
+  </section>
+</main>
+<script>
+(() => {
+  'use strict';
+  const defaults = {work:45, rest:20, sets:3, prep:10};
+  const bounds = {work:[1,600], rest:[0,300], sets:[1,20], prep:[0,60]};
+  const $ = id => document.getElementById(id);
+  let values = {...defaults}, timeline = [], audio = null, audioUrl = null, wakeLock = null, frame = 0, running = false, finished = false;
+  try { const saved = JSON.parse(localStorage.getItem('plank-timer-settings-v1')); if (saved && typeof saved === 'object') values = {...values, ...saved}; } catch (_) {}
+  function clamp(key, value) { const n = Number(value); return Number.isFinite(n) ? Math.min(bounds[key][1], Math.max(bounds[key][0], Math.round(n))) : defaults[key]; }
+  function persist() { try { localStorage.setItem('plank-timer-settings-v1', JSON.stringify(values)); } catch (_) {} }
+  function summary() {
+    const total = values.prep + values.work * values.sets + values.rest * (values.sets - 1);
+    $('summary').textContent = `プランク ${values.work}秒 × ${values.sets}セット · 休憩 ${values.rest}秒 · 合計 ${Math.floor(total/60)}分${String(total%60).padStart(2,'0')}秒`;
+  }
+  Object.keys(defaults).forEach(key => { values[key] = clamp(key, values[key]); $(key).value = values[key]; $(key).addEventListener('change', () => { values[key] = clamp(key, $(key).value); $(key).value = values[key]; persist(); summary(); }); });
+  document.querySelectorAll('[data-field]').forEach(button => button.addEventListener('click', () => { const key=button.dataset.field; values[key]=clamp(key, Number($(key).value || values[key])+Number(button.dataset.step)); $(key).value=values[key]; persist(); summary(); }));
+  summary();
+  function schedule() {
+    const parts=[]; let start=0;
+    function add(type,duration,set) { if (!duration) return; parts.push({type,start,end:start+duration,duration,set}); start+=duration; }
+    add('prep',values.prep,1);
+    for (let i=1;i<=values.sets;i++) { add('work',values.work,i); if (i<values.sets) add('rest',values.rest,i); }
+    return parts;
+  }
+  // A single 8 kHz mono WAV includes the complete session, including quiet rest ticks.
+  // One continuously playing <audio> element avoids relying on background JavaScript ticks.
+  function makeWav(parts) {
+    const rate=8000, length=Math.ceil(parts[parts.length-1].end*rate), data=new Uint8Array(length); data.fill(128);
+    function tone(time, freq, duration, amp, shape='sine') {
+      const from=Math.round(time*rate), count=Math.min(Math.round(duration*rate),length-from);
+      for (let i=0;i<count;i++) {
+        const envelope=Math.min(1,i/55)*Math.pow(1-i/count,1.8), angle=2*Math.PI*freq*i/rate;
+        const signal=shape==='soft' ? Math.sin(angle) : .78*Math.sin(angle)+.22*Math.sin(angle*2);
+        const index=from+i; data[index]=Math.max(0,Math.min(255,data[index]+Math.round(signal*amp*envelope)));
+      }
+    }
+    parts.forEach((part,index) => {
+      for (let second=0;second<part.duration;second++) {
+        const left=part.duration-second, t=part.start+second;
+        if (second===0 && index>0) continue; // transition chime takes this beat
+        if (left<=3) tone(t, part.type==='rest'?1020:920, .17, part.type==='rest'?49:64);
+        else if (part.type==='rest') tone(t, 520, .075, 28, 'soft');
+        else if (part.type==='prep') tone(t, 600, .09, 35, 'soft');
+        else tone(t, 690, .095, 45);
+      }
+      const next=parts[index+1];
+      if (next?.type==='rest') { tone(part.end, 460, .38, 58); tone(part.end+.12, 390, .36, 36, 'soft'); }
+      else if (next?.type==='work') { tone(part.end, 860, .33, 62); tone(part.end+.13, 1140, .32, 44); }
+    });
+    // Reserve space after the workout for an unmistakable finish sound.
+    const extra=Math.round(.85*rate), full=new Uint8Array(length+extra); full.fill(128); full.set(data);
+    function finishTone(offset,freq,duration,amp) { const from=Math.round(offset*rate); for(let i=0;i<Math.round(duration*rate);i++) { const env=Math.pow(1-i/(duration*rate),1.35); const k=from+i; full[k]=Math.max(0,Math.min(255,full[k]+Math.round(Math.sin(2*Math.PI*freq*i/rate)*amp*env))); } }
+    finishTone(parts[parts.length-1].end,740,.6,57);
+    finishTone(parts[parts.length-1].end+.08,980,.62,43);
+    const wav=new ArrayBuffer(44+full.length), view=new DataView(wav), bytes=new Uint8Array(wav);
+    const write=(pos,str)=>{ for(let i=0;i<str.length;i++) bytes[pos+i]=str.charCodeAt(i); };
+    write(0,'RIFF'); view.setUint32(4,36+full.length,true); write(8,'WAVE'); write(12,'fmt ');
+    view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,1,true);
+    view.setUint32(24,rate,true); view.setUint32(28,rate,true); view.setUint16(32,1,true); view.setUint16(34,8,true);
+    write(36,'data'); view.setUint32(40,full.length,true); bytes.set(full,44);
+    return new Blob([wav],{type:'audio/wav'});
+  }
+  async function wake() { if ('wakeLock' in navigator && document.visibilityState==='visible') try { wakeLock=await navigator.wakeLock.request('screen'); } catch (_) {} }
+  function release() { if (wakeLock) { wakeLock.release().catch(()=>{}); wakeLock=null; } }
+  const circumference=2*Math.PI*87; $('ring').style.strokeDasharray=String(circumference);
+  function render() {
+    if (!audio || !running) return;
+    const time=audio.currentTime, last=timeline[timeline.length-1], part=timeline.find(p=>time<p.end) || last;
+    const done=time>=last.end;
+    const remaining=done?0:Math.max(1,Math.ceil(part.end-time-0.0001));
+    $('phase').textContent=done?'完了':({prep:'準備',work:'プランク',rest:'休憩'})[part.type];
+    $('setLabel').textContent=done?`${values.sets}セット完了`:`セット ${part.set} / ${values.sets}`;
+    $('remaining').textContent=remaining;
+    $('dial').className=`dial ${done?'':part.type}`;
+    const fraction=done?0:Math.max(0,Math.min(1,(part.end-time)/part.duration));
+    $('ring').style.strokeDashoffset=String(circumference*(1-fraction));
+    $('next').textContent=done?'おつかれさまでした':part.type==='prep'?'まもなくプランク開始':part.type==='work'?(part.set===values.sets?'このセットで完了':'次は休憩'):'次はプランク';
+    if (done && !finished) { finished=true; $('pause').disabled=true; release(); }
+    if (!finished) frame=requestAnimationFrame(render);
+  }
+  function dispose() { cancelAnimationFrame(frame); release(); if(audio) { audio.pause(); audio.removeAttribute('src'); audio.load(); audio=null; } if(audioUrl) { URL.revokeObjectURL(audioUrl); audioUrl=null; } running=false; finished=false; }
+  $('start').addEventListener('click', async () => {
+    Object.keys(values).forEach(key=>{values[key]=clamp(key,$(key).value); $(key).value=values[key];}); persist(); summary();
+    const total=values.prep+values.work*values.sets+values.rest*(values.sets-1);
+    if (total>1800) { alert('全体が30分以内になるよう設定してください。'); return; }
+    $('start').disabled=true; $('start').textContent='音を準備中…';
+    try {
+      timeline=schedule(); audioUrl=URL.createObjectURL(makeWav(timeline)); audio=new Audio(audioUrl);
+      audio.preload='auto'; audio.playsInline=true; audio.addEventListener('error',()=>{ $('status').textContent='音声を再生できませんでした。終了して再度お試しください。'; });
+      await audio.play(); running=true; $('setup').style.display='none'; $('session').style.display='flex'; $('status').textContent=''; wake(); render();
+    } catch (err) { dispose(); alert('音声を開始できませんでした。端末の音量を確認して、もう一度「開始」を押してください。'); }
+    finally { $('start').disabled=false; $('start').textContent='開始'; }
+  });
+  $('pause').addEventListener('click',async () => {
+    if (!audio || finished) return;
+    if (audio.paused) { try { await audio.play(); $('pause').textContent='一時停止'; $('status').textContent=''; render(); wake(); } catch (_) { $('status').textContent='再開できませんでした。もう一度押してください。'; } }
+    else { audio.pause(); cancelAnimationFrame(frame); $('pause').textContent='再開'; $('status').textContent='一時停止中'; release(); }
+  });
+  $('reset').addEventListener('click',()=>{ dispose(); $('session').style.display='none'; $('setup').style.display='block'; $('pause').textContent='一時停止'; $('pause').disabled=false; $('status').textContent=''; });
+  document.addEventListener('visibilitychange',()=>{ if (document.visibilityState==='visible' && running) { if (!audio.paused && !finished) wake(); if (audio.paused && !finished && $('pause').textContent!=='再開') { $('pause').textContent='再開'; $('status').textContent='画面切り替え中に音声が止まりました。「再開」を押してください。'; } render(); } });
+})();
+</script>
+</body>
+</html>
