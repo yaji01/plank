@@ -59,6 +59,7 @@
   </style>
 </head>
 <body>
+<audio id="player" preload="auto" playsinline></audio>
 <main>
   <header><h1>プランクタイマー</h1><span class="tag">PLANK / REST / REPEAT</span></header>
   <section id="setup">
@@ -87,7 +88,7 @@
   const defaults = {work:45, rest:20, sets:3, prep:10};
   const bounds = {work:[1,600], rest:[0,300], sets:[1,20], prep:[0,60]};
   const $ = id => document.getElementById(id);
-  let values = {...defaults}, timeline = [], audio = null, audioUrl = null, wakeLock = null, frame = 0, running = false, finished = false;
+  let values = {...defaults}, timeline = [], audio = $('player'), audioUrl = null, preparedKey = '', wakeLock = null, frame = 0, running = false, finished = false;
   try { const saved = JSON.parse(localStorage.getItem('plank-timer-settings-v1')); if (saved && typeof saved === 'object') values = {...values, ...saved}; } catch (_) {}
   function clamp(key, value) { const n = Number(value); return Number.isFinite(n) ? Math.min(bounds[key][1], Math.max(bounds[key][0], Math.round(n))) : defaults[key]; }
   function persist() { try { localStorage.setItem('plank-timer-settings-v1', JSON.stringify(values)); } catch (_) {} }
@@ -95,8 +96,8 @@
     const total = values.prep + values.work * values.sets + values.rest * (values.sets - 1);
     $('summary').textContent = `プランク ${values.work}秒 × ${values.sets}セット · 休憩 ${values.rest}秒 · 合計 ${Math.floor(total/60)}分${String(total%60).padStart(2,'0')}秒`;
   }
-  Object.keys(defaults).forEach(key => { values[key] = clamp(key, values[key]); $(key).value = values[key]; $(key).addEventListener('change', () => { values[key] = clamp(key, $(key).value); $(key).value = values[key]; persist(); summary(); }); });
-  document.querySelectorAll('[data-field]').forEach(button => button.addEventListener('click', () => { const key=button.dataset.field; values[key]=clamp(key, Number($(key).value || values[key])+Number(button.dataset.step)); $(key).value=values[key]; persist(); summary(); }));
+  Object.keys(defaults).forEach(key => { values[key] = clamp(key, values[key]); $(key).value = values[key]; $(key).addEventListener('change', () => { values[key] = clamp(key, $(key).value); $(key).value = values[key]; persist(); summary(); prepareAudio(); }); });
+  document.querySelectorAll('[data-field]').forEach(button => button.addEventListener('click', () => { const key=button.dataset.field; values[key]=clamp(key, Number($(key).value || values[key])+Number(button.dataset.step)); $(key).value=values[key]; persist(); summary(); prepareAudio(); }));
   summary();
   function schedule() {
     const parts=[]; let start=0;
@@ -143,6 +144,23 @@
     write(36,'data'); view.setUint32(40,full.length,true); bytes.set(full,44);
     return new Blob([wav],{type:'audio/wav'});
   }
+  function currentKey() { return [values.work,values.rest,values.sets,values.prep].join(':'); }
+  function prepareAudio() {
+    if (running) return;
+    timeline=schedule();
+    const key=currentKey();
+    if (audioUrl && preparedKey===key) return;
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    audioUrl=URL.createObjectURL(makeWav(timeline));
+    preparedKey=key;
+    audio.pause();
+    audio.src=audioUrl;
+    audio.preload='auto';
+    audio.playsInline=true;
+    audio.muted=false;
+    audio.volume=1;
+    audio.load();
+  }
   async function wake() { if ('wakeLock' in navigator && document.visibilityState==='visible') try { wakeLock=await navigator.wakeLock.request('screen'); } catch (_) {} }
   function release() { if (wakeLock) { wakeLock.release().catch(()=>{}); wakeLock=null; } }
   const circumference=2*Math.PI*87; $('ring').style.strokeDasharray=String(circumference);
@@ -161,19 +179,34 @@
     if (done && !finished) { finished=true; $('pause').disabled=true; release(); }
     if (!finished) frame=requestAnimationFrame(render);
   }
-  function dispose() { cancelAnimationFrame(frame); release(); if(audio) { audio.pause(); audio.removeAttribute('src'); audio.load(); audio=null; } if(audioUrl) { URL.revokeObjectURL(audioUrl); audioUrl=null; } running=false; finished=false; }
+  function dispose() { cancelAnimationFrame(frame); release(); audio.pause(); audio.currentTime=0; running=false; finished=false; }
+  $('start').addEventListener('pointerdown', () => {
+    Object.keys(values).forEach(key=>{values[key]=clamp(key,$(key).value); $(key).value=values[key];});
+    persist(); summary(); prepareAudio();
+  });
   $('start').addEventListener('click', async () => {
     Object.keys(values).forEach(key=>{values[key]=clamp(key,$(key).value); $(key).value=values[key];}); persist(); summary();
     const total=values.prep+values.work*values.sets+values.rest*(values.sets-1);
     if (total>1800) { alert('全体が30分以内になるよう設定してください。'); return; }
-    $('start').disabled=true; $('start').textContent='音を準備中…';
+    $('start').disabled=true; $('start').textContent='開始中…';
     try {
-      timeline=schedule(); audioUrl=URL.createObjectURL(makeWav(timeline)); audio=new Audio(audioUrl);
-      audio.preload='auto'; audio.playsInline=true; audio.addEventListener('error',()=>{ $('status').textContent='音声を再生できませんでした。終了して再度お試しください。'; });
-      await audio.play(); running=true; $('setup').style.display='none'; $('session').style.display='flex'; $('status').textContent=''; wake(); render();
-    } catch (err) { dispose(); alert('音声を開始できませんでした。端末の音量を確認して、もう一度「開始」を押してください。'); }
-    finally { $('start').disabled=false; $('start').textContent='開始'; }
+      prepareAudio();
+      audio.currentTime=0;
+      audio.muted=false;
+      audio.volume=1;
+      await audio.play();
+      running=true; finished=false;
+      $('setup').style.display='none'; $('session').style.display='flex'; $('status').textContent='';
+      wake(); render();
+    } catch (err) {
+      dispose();
+      alert('音声を開始できませんでした。iPhoneの音量を上げて、もう一度「開始」を押してください。');
+    } finally {
+      $('start').disabled=false; $('start').textContent='開始';
+    }
   });
+  audio.addEventListener('error',()=>{ $('status').textContent='音声を再生できませんでした。終了して再度お試しください。'; });
+  prepareAudio();
   $('pause').addEventListener('click',async () => {
     if (!audio || finished) return;
     if (audio.paused) { try { await audio.play(); $('pause').textContent='一時停止'; $('status').textContent=''; render(); wake(); } catch (_) { $('status').textContent='再開できませんでした。もう一度押してください。'; } }
