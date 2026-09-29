@@ -72,6 +72,7 @@
     </div>
     <p class="summary" id="summary"></p>
     <button class="primary" id="start" type="button">開始</button>
+    <button class="secondary" id="voice-test" type="button" style="margin-top:10px">音声をテスト</button>
     <p class="note">設定だけをこの端末に保存します。運動履歴は保存しません。音が聞こえる設定でお使いください。</p>
   </section>
   <section id="session" aria-live="off">
@@ -154,18 +155,43 @@
       || voices.find(v => (v.lang || '').toLowerCase().startsWith('ja'))
       || null;
   }
-  function speakCue(text) {
+  function makeUtterance(text, volume=1) {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ja-JP';
+    u.rate = 1.05;
+    u.pitch = 1.08;
+    u.volume = volume;
+    const voice = getPreferredVoice();
+    if (voice) u.voice = voice;
+    return u;
+  }
+  function primeSpeech() {
     if (!('speechSynthesis' in window)) return;
     try {
       speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = 'ja-JP';
-      u.rate = 1.05;
-      u.pitch = 1.08;
-      u.volume = 1;
-      const voice = getPreferredVoice();
-      if (voice) u.voice = voice;
+      speechSynthesis.resume();
+      const u = makeUtterance(' ');
+      u.volume = 0.01;
       speechSynthesis.speak(u);
+    } catch (_) {}
+  }
+  function speakCue(text) {
+    if (!('speechSynthesis' in window)) return;
+    try {
+      speechSynthesis.resume();
+      const u = makeUtterance(text);
+      let started=false;
+      u.onstart=()=>{ started=true; };
+      speechSynthesis.speak(u);
+      setTimeout(()=>{
+        if (!started && !speechSynthesis.speaking) {
+          try {
+            speechSynthesis.cancel();
+            speechSynthesis.resume();
+            speechSynthesis.speak(makeUtterance(text));
+          } catch (_) {}
+        }
+      },250);
     } catch (_) {}
   }
   function cueForPart(part) {
@@ -215,7 +241,11 @@
   function dispose() { cancelAnimationFrame(frame); release(); audio.pause(); audio.currentTime=0; running=false; finished=false; lastCueKey=''; if ('speechSynthesis' in window) speechSynthesis.cancel(); }
   $('start').addEventListener('pointerdown', () => {
     Object.keys(values).forEach(key=>{values[key]=clamp(key,$(key).value); $(key).value=values[key];});
-    persist(); summary(); prepareAudio();
+    persist(); summary(); prepareAudio(); primeSpeech();
+  });
+  $('voice-test').addEventListener('click', () => {
+    primeSpeech();
+    setTimeout(()=>speakCue('ゴー！'),80);
   });
   $('start').addEventListener('click', async () => {
     Object.keys(values).forEach(key=>{values[key]=clamp(key,$(key).value); $(key).value=values[key];}); persist(); summary();
@@ -240,6 +270,12 @@
     }
   });
   audio.addEventListener('error',()=>{ $('status').textContent='音声を再生できませんでした。終了して再度お試しください。'; });
+  audio.addEventListener('timeupdate',()=>{
+    if (!running || finished || !timeline.length) return;
+    const time=audio.currentTime;
+    const part=timeline.find(p=>time<p.end) || timeline[timeline.length-1];
+    cueForPart(part);
+  });
   if ('speechSynthesis' in window) {
     speechSynthesis.getVoices();
     speechSynthesis.addEventListener?.('voiceschanged', () => speechSynthesis.getVoices());
